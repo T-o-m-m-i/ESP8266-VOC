@@ -27,3 +27,12 @@
 *.exe
 *.out
 *.app
+
+# Files
+.cproject
+.ino.cpp
+.project
+
+# Folders
+Release/
+.settings/
