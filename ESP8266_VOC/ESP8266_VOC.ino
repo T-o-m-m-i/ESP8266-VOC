@@ -19,6 +19,10 @@ const char* password = PASSWORD;
 const char* server = "api.thingspeak.com";
 WiFiClient client;
 
+const unsigned long interval = 300000;  //5min  15min=900000
+unsigned long previousMillis = 300000;
+
+
 void setup(void)
 {
   Serial.begin(9600);
@@ -87,27 +91,31 @@ void loop(void)
   Serial.println();
 
   //Send to ThingSpeak
-  if (client.connect(server,80)) {  //   "184.106.153.149" or api.thingspeak.com
-    String postStr = apiKey;
-           postStr +="&field1=";
-           postStr += String(adc0);
-           postStr +="&field2=";
-           postStr += String(t);
-           postStr +="&field3=";
-           postStr += String(h);
-           postStr += "\r\n\r\n";
+  if ((unsigned long)(millis() - previousMillis) >= interval)
+  {
+	  if (client.connect(server,80)) {  //   "184.106.153.149" or api.thingspeak.com
+		String postStr = apiKey;
+			   postStr +="&field1=";
+			   postStr += String(adc0);
+			   postStr +="&field2=";
+			   postStr += String(t);
+			   postStr +="&field3=";
+			   postStr += String(h);
+			   postStr += "\r\n\r\n";
 
-     client.print("POST /update HTTP/1.1\n");
-     client.print("Host: api.thingspeak.com\n");
-     client.print("Connection: close\n");
-     client.print("X-THINGSPEAKAPIKEY: "+apiKey+"\n");
-     client.print("Content-Type: application/x-www-form-urlencoded\n");
-     client.print("Content-Length: ");
-     client.print(postStr.length());
-     client.print("\n\n");
-     client.print(postStr);
+		 client.print("POST /update HTTP/1.1\n");
+		 client.print("Host: api.thingspeak.com\n");
+		 client.print("Connection: close\n");
+		 client.print("X-THINGSPEAKAPIKEY: "+apiKey+"\n");
+		 client.print("Content-Type: application/x-www-form-urlencoded\n");
+		 client.print("Content-Length: ");
+		 client.print(postStr.length());
+		 client.print("\n\n");
+		 client.print(postStr);
+	  }
+	  client.stop();
+
+  previousMillis = millis();
   }
-  client.stop();
-
-  delay(30000);
+  delay(2000);
 }
