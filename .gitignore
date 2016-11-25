@@ -32,6 +32,7 @@
 .cproject
 .ino.cpp
 .project
+Secrets.h
 
 # Folders
 Release/
