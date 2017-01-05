@@ -1,11 +1,23 @@
-#include "Arduino.h"
+//TODO:
+//Timestamp from NTP time server.
+//
 
+#include "Arduino.h"
+#include <SPI.h>
+#include <SD.h>
 #include <ESP8266WiFi.h>
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
 #include <Adafruit_SHT31.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 #include "Secrets.h"
+
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "fi.pool.ntp.org", 7200);
+//strDateTime datetime;
 
 Adafruit_ADS1115 ads;  /* Use this for the 16-bit version */
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
@@ -19,12 +31,15 @@ const char* password = PASSWORD;
 const char* server = "api.thingspeak.com";
 WiFiClient client;
 
-const unsigned long interval = 300000;  //5min  15min=900000
-unsigned long previousMillis = 300000;
+const unsigned long interval = 30000;  //5min  15min=900000
+unsigned long previousMillis = 30000;
 
 uint16_t voc;
 float temp;
 float humid;
+
+const int chipSelect = D8;  //For SD card.
+File root;
 
 void setup(void)
 {
@@ -34,10 +49,17 @@ void setup(void)
 
 	Serial.begin(9600);
 
+	Serial.println("\r\nWaiting for SD card to initialise...");
+	if (!SD.begin(chipSelect)) { // CS is D8 in this example
+	    Serial.println("Initialisation failed!");
+	    return;
+	  }
+	Serial.println("Initialisation completed.");
+
 	//Connecting to SHT31
 	if (! sht31.begin(0x44))  //0x45 is an alternative address
 	{
-		Serial.println("Couldn't find SHT31");
+		Serial.println("Couldn't find SHT31.");
 		while (1) delay(1);
 	}
 
@@ -68,9 +90,11 @@ void setup(void)
 	}
 
 	Serial.println("");
-	Serial.println("WiFi connected");
+	Serial.println("WiFi connected.");
 	Serial.print("IP address: ");
 	Serial.println(WiFi.localIP());
+
+	timeClient.begin();
 }
 
 void loop(void)
@@ -91,6 +115,8 @@ void loop(void)
 	//Send to ThingSpeak
 	if ((unsigned long)(millis() - previousMillis) >= interval)
 	{
+		timeClient.update();
+
 		for(int i=0; i<10; i++)
 		{
 			voc = (voc + ads.readADC_SingleEnded(0)) / 2.0;
@@ -99,7 +125,37 @@ void loop(void)
 			delay(50);
 			//Serial.print("voc_i = "); Serial.println(voc);
 		}
+///----------------------------------------------
+		File file = SD.open("data.txt", FILE_WRITE); // FILE_WRITE opens file for writing and moves to the end of the file, returns 0 if not available
+		if(file)
+		{
+			Serial.print(timeClient.datetime.day);
+			Serial.print(".");
+			Serial.print(timeClient.datetime.month);
+			Serial.print(".");
+			Serial.println(timeClient.datetime.year);
 
+			Serial.print(timeClient.datetime.hour);
+			Serial.print(":");
+			Serial.print(timeClient.datetime.minute);
+			Serial.print(":");
+			Serial.println(timeClient.datetime.second);
+
+			Serial.println(timeClient.getFormattedTime());
+			String dataStr = String(timeClient.datetime.day) + "."
+							+ String(timeClient.datetime.month) + "."
+							+ String(timeClient.datetime.year) + ","
+							+ String(timeClient.datetime.hour) + ":"
+							+ String(timeClient.datetime.minute) + ":"
+							+ String(timeClient.datetime.second) + ","
+							+ String(voc) + ","
+							+ String(temp) + ","
+							+ String(humid);
+		    file.println(dataStr);
+		    file.close();
+		    Serial.println("Data written to SD.");
+		}
+///----------------------------------------------
 		if (client.connect(server,80)) //   "184.106.153.149" or api.thingspeak.com
 		{
 			String postStr = apiKey;
@@ -122,7 +178,7 @@ void loop(void)
 			client.print(postStr);
 		}
 		client.stop();
-
+///----------------------------------------------
 		previousMillis = millis();
 	}
 }
