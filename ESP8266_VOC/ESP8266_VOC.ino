@@ -1,5 +1,5 @@
 //TODO:
-//Timestamp from NTP time server.
+//
 //
 
 #include "Arduino.h"
@@ -31,8 +31,8 @@ const char* password = PASSWORD;
 const char* server = "api.thingspeak.com";
 WiFiClient client;
 
-const unsigned long interval = 30000;  //5min  15min=900000
-unsigned long previousMillis = 30000;
+const unsigned long interval = 300000;  //5min  15min=900000
+unsigned long previousMillis = 60000;
 
 uint16_t voc;
 float temp;
@@ -99,19 +99,6 @@ void setup(void)
 
 void loop(void)
 {
-	/*  if (! isnan(t)) {  // check if 'is not a number'
-	//Serial.print("Temp *C = "); Serial.println(t);
-	} else {
-	Serial.println("Failed to read temperature");
-	}
-
-	if (! isnan(h)) {  // check if 'is not a number'
-	//Serial.print("Hum. % = "); Serial.println(h);
-	} else {
-	Serial.println("Failed to read humidity");
-	}*/
-	//Serial.println();
-
 	//Send to ThingSpeak
 	if ((unsigned long)(millis() - previousMillis) >= interval)
 	{
@@ -119,17 +106,16 @@ void loop(void)
 
 		for(int i=0; i<10; i++)
 		{
+			delay(100);
 			voc = (voc + ads.readADC_SingleEnded(0)) / 2.0;
 			temp = (temp + sht31.readTemperature()) / 2.0;
 			humid = (humid + sht31.readHumidity()) / 2.0;
-			delay(50);
-			//Serial.print("voc_i = "); Serial.println(voc);
 		}
 ///----------------------------------------------
 		File file = SD.open("data.txt", FILE_WRITE); // FILE_WRITE opens file for writing and moves to the end of the file, returns 0 if not available
 		if(file)
 		{
-			Serial.print(timeClient.datetime.day);
+		/*	Serial.print(timeClient.datetime.day);
 			Serial.print(".");
 			Serial.print(timeClient.datetime.month);
 			Serial.print(".");
@@ -139,13 +125,13 @@ void loop(void)
 			Serial.print(":");
 			Serial.print(timeClient.datetime.minute);
 			Serial.print(":");
-			Serial.println(timeClient.datetime.second);
+			Serial.println(timeClient.datetime.second);*/
 
-			Serial.println(timeClient.getFormattedTime());
+			//Serial.println(timeClient.getFormattedTime());
 			String dataStr = String(timeClient.datetime.day) + "."
 							+ String(timeClient.datetime.month) + "."
 							+ String(timeClient.datetime.year) + ","
-							+ String(timeClient.datetime.hour) + ":"
+							+ String(timeClient.datetime.hour + 2) + ":"
 							+ String(timeClient.datetime.minute) + ":"
 							+ String(timeClient.datetime.second) + ","
 							+ String(voc) + ","
@@ -153,6 +139,7 @@ void loop(void)
 							+ String(humid);
 		    file.println(dataStr);
 		    file.close();
+		    //Serial.println(dataStr);
 		    Serial.println("Data written to SD.");
 		}
 ///----------------------------------------------
