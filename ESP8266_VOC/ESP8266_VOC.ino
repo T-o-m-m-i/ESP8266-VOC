@@ -32,7 +32,7 @@ const char* server = "api.thingspeak.com";
 WiFiClient client;
 
 const unsigned long interval = 300000;  //5min  15min=900000
-unsigned long previousMillis = 60000;
+unsigned long previousMillis = 300000;
 
 uint16_t voc;
 float temp;
