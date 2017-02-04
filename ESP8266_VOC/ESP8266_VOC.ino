@@ -8,6 +8,7 @@
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
 #include <Adafruit_SHT31.h>
+#include <Adafruit_BME280.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 
@@ -20,6 +21,8 @@ NTPClient timeClient(ntpUDP, "fi.pool.ntp.org", 7200);
 
 Adafruit_ADS1115 ads;  /* Use this for the 16-bit version */
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
+
+Adafruit_BME280 bme; // I2C
 
 //Replace with your thingspeak API key,
 String apiKey = APIKEY;
@@ -37,8 +40,13 @@ uint16_t voc;
 float temp;
 float humid;
 
+float bme_temp;
+float bme_pressure;
+float bme_humid;
+
 const int chipSelect = D8;  //For SD card.
 File root;
+bool noSD = false;
 
 void setup(void)
 {
@@ -51,15 +59,22 @@ void setup(void)
 	Serial.println("\r\nWaiting for SD card to initialise...");
 	if (!SD.begin(chipSelect)) { // CS is D8 in this example
 	    Serial.println("Initialisation failed!");
-	    return;
-	  }
+	    noSD = true;
+	    //return;
+	} else {
 	Serial.println("Initialisation completed.");
+	}
 
 	//Connecting to SHT31
 	if (! sht31.begin(0x44))  //0x45 is an alternative address
 	{
-		Serial.println("Couldn't find SHT31.");
-		while (1) delay(1);
+		Serial.println("Couldn't find the SHT31 sensor.");
+		while (1);
+	}
+
+	if (!bme.begin()) {
+		Serial.println("Couldn't find the BME280 sensor.");
+		while (1);
 	}
 
 	// The ADC input range (or gain) can be changed via the following
@@ -81,7 +96,9 @@ void setup(void)
 	Serial.print("Connecting to ");
 	Serial.println(ssid);
 
-	WiFi.begin(ssid, password);
+	if (WiFi.status() != WL_CONNECTED) {
+	  WiFi.begin(ssid, password);
+	}
 
 	while (WiFi.status() != WL_CONNECTED) {
 	delay(500);
@@ -110,23 +127,41 @@ void loop(void)
 			temp = (temp + sht31.readTemperature()) / 2.0;
 			humid = (humid + sht31.readHumidity()) / 2.0;
 		}
-///----------------------------------------------
-		File file = SD.open("data.txt", FILE_WRITE); // FILE_WRITE opens file for writing and moves to the end of the file, returns 0 if not available
-		if(file)
+
+		//Discard the first measurement.
+		for(int i=0; i<2; i++)
 		{
-		/*	Serial.print(timeClient.datetime.day);
-			Serial.print(".");
-			Serial.print(timeClient.datetime.month);
-			Serial.print(".");
-			Serial.println(timeClient.datetime.year);
-
-			Serial.print(timeClient.datetime.hour);
-			Serial.print(":");
-			Serial.print(timeClient.datetime.minute);
-			Serial.print(":");
-			Serial.println(timeClient.datetime.second);*/
-
-			//Serial.println(timeClient.getFormattedTime());
+			bme_temp = bme.readTemperature();
+			bme_pressure = bme.readPressure();
+			bme_humid = bme.readHumidity();
+		}
+///----------------------------------------------
+		if(!noSD)
+		{
+			File file = SD.open("data.txt", FILE_WRITE); // FILE_WRITE opens file for writing and moves to the end of the file, returns 0 if not available
+			if(file)
+			{
+				//Serial.println(timeClient.getFormattedTime());
+				String dataStr = String(timeClient.datetime.day) + "."
+								+ String(timeClient.datetime.month) + "."
+								+ String(timeClient.datetime.year) + ","
+								+ String(timeClient.datetime.hour + 2) + ":"
+								+ String(timeClient.datetime.minute) + ":"
+								+ String(timeClient.datetime.second) + ","
+								+ String(voc) + ","
+								+ String(temp) + ","
+								+ String(humid) + ","
+								+ String(bme_temp) + ","
+								+ String(bme_pressure) + ","
+								+ String(bme_humid);
+				file.println(dataStr);
+				file.close();
+				//Serial.println(dataStr);
+				//Serial.println("Data written to SD.");
+			}
+		}
+		else
+		{
 			String dataStr = String(timeClient.datetime.day) + "."
 							+ String(timeClient.datetime.month) + "."
 							+ String(timeClient.datetime.year) + ","
@@ -135,11 +170,13 @@ void loop(void)
 							+ String(timeClient.datetime.second) + ","
 							+ String(voc) + ","
 							+ String(temp) + ","
-							+ String(humid);
-		    file.println(dataStr);
-		    file.close();
-		    //Serial.println(dataStr);
-		    Serial.println("Data written to SD.");
+							+ String(humid) + ","
+							+ String(bme_temp) + ","
+							+ String(bme_pressure) + ","
+							+ String(bme_humid);
+
+							Serial.println(dataStr);
+							Serial.println("Data NOT written to SD.");
 		}
 ///----------------------------------------------
 		if (client.connect(server,80)) //   "184.106.153.149" or api.thingspeak.com
@@ -151,6 +188,12 @@ void loop(void)
 			postStr += String(temp);
 			postStr +="&field3=";
 			postStr += String(humid);
+			postStr +="&field4=";
+			postStr += String(bme_temp);
+			postStr +="&field5=";
+			postStr += String(bme_pressure);
+			postStr +="&field6=";
+			postStr += String(bme_humid);
 			postStr += "\r\n\r\n";
 
 			client.print("POST /update HTTP/1.1\n");
